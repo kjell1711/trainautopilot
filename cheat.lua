@@ -42,7 +42,7 @@ local Config = {
     DoorSide = 2, -- 0 = links (X), 1 = rechts (C), 2 = beide
     OpenDoors = true,
     HoldGasTime = 1.0,
-    HoldBrakeTime = 2.3,
+    HoldBrakeTime = 4.5,
     
     -- Autopilot
     StopAtEveryStation = true,
