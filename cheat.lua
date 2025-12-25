@@ -240,6 +240,7 @@ function CreateGUI()
         
         TabButton.MouseButton1Click:Connect(function()
             SwitchTab(tab.Name)
+            UpdateStationDisplay()
         end)
     end
     
