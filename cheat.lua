@@ -64,7 +64,7 @@ local Config = {
     NearUpdateInterval = 0.1, -- Update-Intervall bei Nähe zur Station (Sekunden)
     StatUpdateInterval = 30, -- Statistiken-Update-Intervall (Sekunden)
     SlowUpdateDistance = 2500, -- Distanz für langsames Update (Studs)
-    FastUpdateDistance = 1200 -- Distanz für schnelles Update (Studs)
+    FastUpdateDistance = 1250 -- Distanz für schnelles Update (Studs)
 }
 
 -- // VARIABLEN // --
