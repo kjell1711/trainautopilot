@@ -41,7 +41,7 @@ local Config = {
     WaitTimeAtStation = 10,
     DoorSide = 2, -- 0 = links (X), 1 = rechts (C), 2 = beide
     OpenDoors = true,
-    HoldGasTime = 1.0,
+    HoldGasTime = 2.0,
     HoldBrakeTime = 4.5,
     
     -- Autopilot
