@@ -1229,6 +1229,7 @@ function SaveStationPosition(stationIndex)
         Config.Stations[stationKey] = {Position = nil, Name = "Station " .. stationIndex, Active = true, BrakeStartDistance = nil}
     end
     
+    -- Position speichern
     Config.Stations[stationKey].Position = root.Position
     
     -- GUI Update
@@ -1245,8 +1246,12 @@ function SaveStationPosition(stationIndex)
     end
     
     Log("✅ Haltestelle " .. stationIndex .. " gespeichert")
+    
+    -- SPEICHERN NICHT VERGESSEN!
     SaveConfig()
 end
+
+
 
 -- // VERBESSERTE FAHRLOGIK MIT INTELLIGENTER BREMSUNG & ADAPTIVEM UPDATE // --
 function DriveToStation(stationPosition)
