@@ -1,10 +1,8 @@
 -- ================================================
--- RAILMASTER PRO v5.3 - VOLLSTÄNDIG FUNKTIONIEREND
+-- RAILMASTER PRO v5.1 - VOLLSTÄNDIG FUNKTIONIEREND
 -- Mit allen Tabs: Einstellungen, Discord, Stats
 -- Türsteuerung: X (links), C (rechts), beide
 -- INDIVIDUELLE BREMSSTARTDISTANZ PRO BAHNHOF
--- ADAPTIVE PERFORMANCE-OPTIMIERUNG
--- WÄHLBARE STARTSTATION
 -- ================================================
 
 -- // SERVICES // --
@@ -27,7 +25,7 @@ local Config = {
         SystemStart = true
     },
     
-    -- Stationen MIT INDIVIDUELLER BREMSDISTANZ UND POSITIONEN
+    -- Stationen MIT INDIVIDUELLER BREMSDISTANZ
     Stations = {
         Station1 = {Position = nil, Name = "Bahnhof 1", Active = true, BrakeStartDistance = nil},
         Station2 = {Position = nil, Name = "Bahnhof 2", Active = true, BrakeStartDistance = nil},
@@ -41,30 +39,21 @@ local Config = {
     WaitTimeAtStation = 10,
     DoorSide = 2, -- 0 = links (X), 1 = rechts (C), 2 = beide
     OpenDoors = true,
-    HoldGasTime = 4.0,
-    HoldBrakeTime = 8.5,
+    HoldGasTime = 0.3,
+    HoldBrakeTime = 0.3,
     
     -- Autopilot
     StopAtEveryStation = true,
     AutoStart = false,
     LoopRoute = true,
     RandomRoute = false,
-    StartStationIndex = 1, -- NEU: Wählbare Startstation
     
     -- Sonstiges
     DebugMode = true,
     SoundNotifications = true,
     
     -- Neue Einstellungen
-    SlowApproachSpeed = 0.15, -- Langsame Annäherung wenn zu früh gestoppt
-    
-    -- Performance Einstellungen
-    AdaptiveUpdate = true, -- Adaptive Update-Rate basierend auf Distanz
-    FarUpdateInterval = 1.0, -- Update-Intervall bei großer Distanz (Sekunden)
-    NearUpdateInterval = 0.1, -- Update-Intervall bei Nähe zur Station (Sekunden)
-    StatUpdateInterval = 30, -- Statistiken-Update-Intervall (Sekunden)
-    SlowUpdateDistance = 2500, -- Distanz für langsames Update (Studs)
-    FastUpdateDistance = 1250 -- Distanz für schnelles Update (Studs)
+    SlowApproachSpeed = 0.15 -- Langsame Annäherung wenn zu früh gestoppt
 }
 
 -- // VARIABLEN // --
@@ -83,26 +72,13 @@ local LastDistance = nil
 local IsBraking = false
 local StationSkipped = false
 
--- Performance Variablen
-local LastStatUpdate = 0
-local CurrentUpdateInterval = Config.NearUpdateInterval
-local LastDistanceToStation = 9999
-local FastModeActive = false
-local LastStationPosition = nil
-
 -- Statistik Tracking
 local Stats = {
     StartTime = os.time(),
     LastTripTime = 0,
     MoneyPerHour = 0,
     TripsPerHour = 0,
-    StationVisits = {0, 0, 0, 0},
-    PerformanceStats = {
-        FastModeCount = 0,
-        SlowModeCount = 0,
-        UpdatesTotal = 0,
-        LastSwitchTime = 0
-    }
+    StationVisits = {0, 0, 0, 0}
 }
 
 -- // NEUE FUNKTION: INDIVIDUELLE BREMSDISTANZ ABRUFEN // --
@@ -112,68 +88,6 @@ function GetBrakeDistanceForStation(stationIndex)
         return station.BrakeStartDistance
     end
     return Config.BrakeStartDistance
-end
-
--- // NEUE FUNKTION: ADAPTIVES UPDATE-INTERVALL BERECHNEN (MIT 2 DISTANZEN) // --
-function CalculateAdaptiveInterval(distanceToStation)
-    if not Config.AdaptiveUpdate then
-        return Config.NearUpdateInterval
-    end
-    
-    -- Wenn Bremsen aktiv ist, immer schnelles Update
-    if IsBraking then
-        if not FastModeActive then
-            FastModeActive = true
-            Stats.PerformanceStats.FastModeCount = Stats.PerformanceStats.FastModeCount + 1
-            Stats.PerformanceStats.LastSwitchTime = os.time()
-        end
-        return Config.NearUpdateInterval
-    end
-    
-    -- Prüfe Distanz für Update-Intervall (NEU: 2 Schwellen)
-    if distanceToStation > Config.SlowUpdateDistance then
-        -- Sehr weit entfernt (>1000 Studs) -> sehr langsames Update
-        if FastModeActive then
-            FastModeActive = false
-            Stats.PerformanceStats.SlowModeCount = Stats.PerformanceStats.SlowModeCount + 1
-            Stats.PerformanceStats.LastSwitchTime = os.time()
-        end
-        return Config.FarUpdateInterval
-    elseif distanceToStation <= Config.FastUpdateDistance then
-        -- Nahe (<300 Studs) -> schnelles Update
-        if not FastModeActive then
-            FastModeActive = true
-            Stats.PerformanceStats.FastModeCount = Stats.PerformanceStats.FastModeCount + 1
-            Stats.PerformanceStats.LastSwitchTime = os.time()
-        end
-        return Config.NearUpdateInterval
-    else
-        -- Mittlere Distanz (300-1000 Studs) -> mittleres Update
-        local mediumInterval = (Config.FarUpdateInterval + Config.NearUpdateInterval) / 2
-        if FastModeActive then
-            FastModeActive = false
-            Stats.PerformanceStats.SlowModeCount = Stats.PerformanceStats.SlowModeCount + 1
-        end
-        return mediumInterval
-    end
-end
-
--- // NEUE FUNKTION: DISTANZ ZUR AKTUELLEN STATION BERECHNEN // --
-function GetDistanceToCurrentStation()
-    local station = Config.Stations["Station" .. CurrentStationIndex]
-    if not station or not station.Position then
-        return 9999
-    end
-    
-    local char = LocalPlayer.Character
-    if not char then return 9999 end
-    
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return 9999 end
-    
-    local distance = (root.Position - station.Position).Magnitude
-    LastStationPosition = station.Position
-    return distance
 end
 
 -- // GUI ERSTELLUNG // --
@@ -199,7 +113,7 @@ function CreateGUI()
     -- Titel mit Drag-Funktion
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
-    Title.Text = "🚂 RAILMASTER PRO v5.3 (ADAPTIVE)"
+    Title.Text = "🚂 RAILMASTER PRO v5.1"
     Title.Size = UDim2.new(1, 0, 0, 40)
     Title.Position = UDim2.new(0, 0, 0, 0)
     Title.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
@@ -208,7 +122,7 @@ function CreateGUI()
     Title.TextSize = 20
     Title.Parent = MainFrame
     
-    -- Tab Buttons
+    -- Tab Buttons (MIT NEUEM BREMSDISTANZ TAB)
     local TabContainer = Instance.new("Frame")
     TabContainer.Name = "TabContainer"
     TabContainer.Size = UDim2.new(1, 0, 0, 40)
@@ -219,7 +133,7 @@ function CreateGUI()
     local Tabs = {
         {Name = "Autopilot", Color = Color3.fromRGB(0, 120, 215)},
         {Name = "Haltestellen", Color = Color3.fromRGB(215, 120, 0)},
-        {Name = "Bremsdistanz", Color = Color3.fromRGB(170, 0, 170)},
+        {Name = "Bremsdistanz", Color = Color3.fromRGB(170, 0, 170)},  -- NEUER TAB
         {Name = "Einstellungen", Color = Color3.fromRGB(0, 170, 0)},
         {Name = "Discord", Color = Color3.fromRGB(170, 0, 170)},
         {Name = "Stats", Color = Color3.fromRGB(170, 170, 0)}
@@ -240,7 +154,6 @@ function CreateGUI()
         
         TabButton.MouseButton1Click:Connect(function()
             SwitchTab(tab.Name)
-            UpdateStationDisplay()
         end)
     end
     
@@ -251,11 +164,11 @@ function CreateGUI()
     ContentFrame.Position = UDim2.new(0, 5, 0, 90)
     ContentFrame.BackgroundTransparency = 1
     ContentFrame.ScrollBarThickness = 8
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 1300)
+    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 1000)
     ContentFrame.ScrollingDirection = Enum.ScrollingDirection.Y
     ContentFrame.Parent = MainFrame
     
-    -- Status Bar MIT PERFORMANCE-INFO
+    -- Status Bar
     local StatusBar = Instance.new("Frame")
     StatusBar.Name = "StatusBar"
     StatusBar.Size = UDim2.new(1, 0, 0, 50)
@@ -289,7 +202,7 @@ function CreateGUI()
     
     local ActionLabel = Instance.new("TextLabel")
     ActionLabel.Name = "ActionLabel"
-    ActionLabel.Text = "Aktion: Warte auf Start | Update: --"
+    ActionLabel.Text = "Aktion: Warte auf Start"
     ActionLabel.Size = UDim2.new(1, -20, 0.5, 0)
     ActionLabel.Position = UDim2.new(0, 10, 0.5, 0)
     ActionLabel.BackgroundTransparency = 1
@@ -309,10 +222,10 @@ function CreateGUI()
 end
 
 function CreateTabContents(parent)
-    -- AUTOPILOT TAB (MIT STARTSTATION-AUSWAHL)
+    -- AUTOPILOT TAB
     local AutoPilotFrame = Instance.new("Frame")
     AutoPilotFrame.Name = "AutopilotFrame"
-    AutoPilotFrame.Size = UDim2.new(1, 0, 0, 380)
+    AutoPilotFrame.Size = UDim2.new(1, 0, 0, 300)
     AutoPilotFrame.Position = UDim2.new(0, 0, 0, 0)
     AutoPilotFrame.BackgroundTransparency = 1
     AutoPilotFrame.Visible = false
@@ -342,39 +255,12 @@ function CreateTabContents(parent)
     EmergencyBtn.TextSize = 14
     EmergencyBtn.Parent = AutoPilotFrame
     
-    -- Startstation Auswahl
-    local StartStationLabel = Instance.new("TextLabel")
-    StartStationLabel.Name = "StartStationLabel"
-    StartStationLabel.Text = "🚦 STARTSTATION: Station " .. Config.StartStationIndex
-    StartStationLabel.Size = UDim2.new(1, -20, 0, 30)
-    StartStationLabel.Position = UDim2.new(0, 10, 0, 120)
-    StartStationLabel.BackgroundTransparency = 1
-    StartStationLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-    StartStationLabel.Font = Enum.Font.GothamBold
-    StartStationLabel.TextSize = 14
-    StartStationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    StartStationLabel.Parent = AutoPilotFrame
-    
-    -- Startstation Buttons
-    for i = 1, 4 do
-        local StationBtn = Instance.new("TextButton")
-        StationBtn.Name = "StartStationBtn" .. i
-        StationBtn.Text = "Station " .. i
-        StationBtn.Size = UDim2.new(0.23, -2, 0, 30)
-        StationBtn.Position = UDim2.new((i-1) * 0.235, 10, 0, 155)
-        StationBtn.BackgroundColor3 = Config.StartStationIndex == i and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 80)
-        StationBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        StationBtn.Font = Enum.Font.Gotham
-        StationBtn.TextSize = 12
-        StationBtn.Parent = AutoPilotFrame
-    end
-    
     -- Info Labels
     local NextStationLabel = Instance.new("TextLabel")
     NextStationLabel.Name = "NextStationLabel"
     NextStationLabel.Text = "Nächster Halt: --"
     NextStationLabel.Size = UDim2.new(1, -20, 0, 30)
-    NextStationLabel.Position = UDim2.new(0, 10, 0, 195)
+    NextStationLabel.Position = UDim2.new(0, 10, 0, 120)
     NextStationLabel.BackgroundTransparency = 1
     NextStationLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
     NextStationLabel.Font = Enum.Font.Gotham
@@ -386,7 +272,7 @@ function CreateTabContents(parent)
     SpeedLabel.Name = "SpeedLabel"
     SpeedLabel.Text = "Geschwindigkeit: --"
     SpeedLabel.Size = UDim2.new(1, -20, 0, 30)
-    SpeedLabel.Position = UDim2.new(0, 10, 0, 230)
+    SpeedLabel.Position = UDim2.new(0, 10, 0, 155)
     SpeedLabel.BackgroundTransparency = 1
     SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     SpeedLabel.Font = Enum.Font.Gotham
@@ -394,24 +280,11 @@ function CreateTabContents(parent)
     SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
     SpeedLabel.Parent = AutoPilotFrame
     
-    -- Performance Info
-    local PerfLabel = Instance.new("TextLabel")
-    PerfLabel.Name = "PerfLabel"
-    PerfLabel.Text = "⚡ Performance: Adaptive | Update: --"
-    PerfLabel.Size = UDim2.new(1, -20, 0, 30)
-    PerfLabel.Position = UDim2.new(0, 10, 0, 265)
-    PerfLabel.BackgroundTransparency = 1
-    PerfLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-    PerfLabel.Font = Enum.Font.Gotham
-    PerfLabel.TextSize = 12
-    PerfLabel.TextXAlignment = Enum.TextXAlignment.Left
-    PerfLabel.Parent = AutoPilotFrame
-    
     local InfoText = Instance.new("TextLabel")
     InfoText.Name = "InfoText"
-    InfoText.Text = "ℹ️  W = Gas | S = Bremsen | X/C = Türen\n🔧 Drücke F1 um GUI zu verstecken\n⚡ Adaptive Performance: >1000 Studs = 1s | <300 Studs = 0.1s"
-    InfoText.Size = UDim2.new(1, -20, 0, 70)
-    InfoText.Position = UDim2.new(0, 10, 0, 300)
+    InfoText.Text = "ℹ️  W = Gas | S = Bremsen | X/C = Türen\n🔧 Drücke F1 um GUI zu verstecken"
+    InfoText.Size = UDim2.new(1, -20, 0, 60)
+    InfoText.Position = UDim2.new(0, 10, 0, 200)
     InfoText.BackgroundTransparency = 1
     InfoText.TextColor3 = Color3.fromRGB(150, 150, 200)
     InfoText.Font = Enum.Font.Gotham
@@ -420,21 +293,21 @@ function CreateTabContents(parent)
     InfoText.TextXAlignment = Enum.TextXAlignment.Left
     InfoText.Parent = AutoPilotFrame
     
-    -- HALTESTELLEN TAB (MIT POSITIONEN SPEICHERN)
+    -- HALTESTELLEN TAB
     local StationsFrame = Instance.new("Frame")
     StationsFrame.Name = "HaltestellenFrame"
-    StationsFrame.Size = UDim2.new(1, 0, 0, 450)
+    StationsFrame.Size = UDim2.new(1, 0, 0, 400)
     StationsFrame.Position = UDim2.new(0, 0, 0, 0)
     StationsFrame.BackgroundTransparency = 1
     StationsFrame.Visible = false
     StationsFrame.Parent = parent
     
     for i = 1, 4 do
-        local yPos = 10 + (i-1) * 100
+        local yPos = 10 + (i-1) * 80
         
+        -- FIX: Sicherstellen, dass die Station existiert
         local stationData = Config.Stations["Station" .. i]
         local stationName = stationData and stationData.Name or "Unbenannt"
-        local stationPos = stationData and stationData.Position
         
         local StationBtn = Instance.new("TextButton")
         StationBtn.Name = "StationBtn" .. i
@@ -449,45 +322,29 @@ function CreateTabContents(parent)
         
         local StatusLabel = Instance.new("TextLabel")
         StatusLabel.Name = "StationStatus" .. i
-        StatusLabel.Text = stationPos and "✓ Gespeichert" or "Nicht gespeichert"
-        StatusLabel.Size = UDim2.new(1, -20, 0, 25)
+        StatusLabel.Text = "Nicht gespeichert"
+        StatusLabel.Size = UDim2.new(1, -20, 0, 30)
         StatusLabel.Position = UDim2.new(0, 10, 0, yPos + 45)
         StatusLabel.BackgroundTransparency = 1
-        StatusLabel.TextColor3 = stationPos and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         StatusLabel.Font = Enum.Font.Gotham
         StatusLabel.TextSize = 12
         StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
         StatusLabel.Parent = StationsFrame
-        
-        local PosLabel = Instance.new("TextLabel")
-        PosLabel.Name = "StationPos" .. i
-        if stationPos then
-            PosLabel.Text = "Position: X=" .. math.floor(stationPos.X) .. " Y=" .. math.floor(stationPos.Y) .. " Z=" .. math.floor(stationPos.Z)
-        else
-            PosLabel.Text = "Position: Nicht gespeichert"
-        end
-        PosLabel.Size = UDim2.new(1, -20, 0, 25)
-        PosLabel.Position = UDim2.new(0, 10, 0, yPos + 70)
-        PosLabel.BackgroundTransparency = 1
-        PosLabel.TextColor3 = stationPos and Color3.fromRGB(150, 200, 255) or Color3.fromRGB(150, 150, 150)
-        PosLabel.Font = Enum.Font.Gotham
-        PosLabel.TextSize = 11
-        PosLabel.TextXAlignment = Enum.TextXAlignment.Left
-        PosLabel.Parent = StationsFrame
     end
     
     local ClearBtn = Instance.new("TextButton")
     ClearBtn.Name = "ClearBtn"
     ClearBtn.Text = "🗑️ Alle löschen"
     ClearBtn.Size = UDim2.new(1, -20, 0, 40)
-    ClearBtn.Position = UDim2.new(0, 10, 0, 410)
+    ClearBtn.Position = UDim2.new(0, 10, 0, 340)
     ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 70, 70)
     ClearBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     ClearBtn.Font = Enum.Font.Gotham
     ClearBtn.TextSize = 14
     ClearBtn.Parent = StationsFrame
     
-    -- BREMSDISTANZ TAB
+    -- NEUER BREMSDISTANZ TAB
     local BrakeDistFrame = Instance.new("Frame")
     BrakeDistFrame.Name = "BremsdistanzFrame"
     BrakeDistFrame.Size = UDim2.new(1, 0, 0, 500)
@@ -520,6 +377,7 @@ function CreateTabContents(parent)
     GlobalInfo.TextXAlignment = Enum.TextXAlignment.Left
     GlobalInfo.Parent = BrakeDistFrame
     
+    -- Für jeden Bahnhof eine Einstellung
     for i = 1, 4 do
         local station = Config.Stations["Station" .. i]
         local stationName = station and station.Name or "Haltestelle " .. i
@@ -560,6 +418,7 @@ function CreateTabContents(parent)
         valueLabel.TextXAlignment = Enum.TextXAlignment.Left
         valueLabel.Parent = BrakeDistFrame
         
+        -- Reset Button
         local resetBtn = Instance.new("TextButton")
         resetBtn.Name = "ResetBtn" .. i
         resetBtn.Text = "↺"
@@ -594,210 +453,21 @@ function CreateTabContents(parent)
     ResetAllBtn.TextSize = 14
     ResetAllBtn.Parent = BrakeDistFrame
     
-    -- EINSTELLUNGEN TAB (MIT STARTSTATION UND PERFORMANCE-EINSTELLUNGEN)
+    -- EINSTELLUNGEN TAB
     local SettingsFrame = Instance.new("Frame")
     SettingsFrame.Name = "EinstellungenFrame"
-    SettingsFrame.Size = UDim2.new(1, 0, 0, 1050)
+    SettingsFrame.Size = UDim2.new(1, 0, 0, 850)
     SettingsFrame.Position = UDim2.new(0, 0, 0, 0)
     SettingsFrame.BackgroundTransparency = 1
     SettingsFrame.Visible = false
     SettingsFrame.Parent = parent
     
-    -- Performance Einstellungen Section
-    local PerfSettingsLabel = Instance.new("TextLabel")
-    PerfSettingsLabel.Name = "PerfSettingsLabel"
-    PerfSettingsLabel.Text = "⚡ PERFORMANCE EINSTELLUNGEN"
-    PerfSettingsLabel.Size = UDim2.new(1, -20, 0, 30)
-    PerfSettingsLabel.Position = UDim2.new(0, 10, 0, 10)
-    PerfSettingsLabel.BackgroundTransparency = 1
-    PerfSettingsLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-    PerfSettingsLabel.Font = Enum.Font.GothamBold
-    PerfSettingsLabel.TextSize = 16
-    PerfSettingsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    PerfSettingsLabel.Parent = SettingsFrame
-    
-    -- Adaptive Performance Toggle
-    local AdaptiveToggle = Instance.new("TextButton")
-    AdaptiveToggle.Name = "AdaptiveToggle"
-    AdaptiveToggle.Text = "Adaptive Performance: " .. (Config.AdaptiveUpdate and "✅ AN" or "❌ AUS")
-    AdaptiveToggle.Size = UDim2.new(1, -20, 0, 40)
-    AdaptiveToggle.Position = UDim2.new(0, 10, 0, 50)
-    AdaptiveToggle.BackgroundColor3 = Config.AdaptiveUpdate and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-    AdaptiveToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    AdaptiveToggle.Font = Enum.Font.Gotham
-    AdaptiveToggle.TextSize = 14
-    AdaptiveToggle.Parent = SettingsFrame
-    
-    -- Fernes Update-Intervall
-    local FarIntervalLabel = Instance.new("TextLabel")
-    FarIntervalLabel.Name = "FarIntervalLabel"
-    FarIntervalLabel.Text = "Fernes Update-Intervall: " .. Config.FarUpdateInterval .. "s"
-    FarIntervalLabel.Size = UDim2.new(1, -20, 0, 25)
-    FarIntervalLabel.Position = UDim2.new(0, 10, 0, 100)
-    FarIntervalLabel.BackgroundTransparency = 1
-    FarIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    FarIntervalLabel.Font = Enum.Font.Gotham
-    FarIntervalLabel.TextSize = 14
-    FarIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
-    FarIntervalLabel.Parent = SettingsFrame
-    
-    local FarIntervalSlider = Instance.new("TextBox")
-    FarIntervalSlider.Name = "FarIntervalSlider"
-    FarIntervalSlider.Text = tostring(Config.FarUpdateInterval)
-    FarIntervalSlider.Size = UDim2.new(1, -20, 0, 30)
-    FarIntervalSlider.Position = UDim2.new(0, 10, 0, 125)
-    FarIntervalSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    FarIntervalSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    FarIntervalSlider.Font = Enum.Font.Gotham
-    FarIntervalSlider.TextSize = 14
-    FarIntervalSlider.PlaceholderText = "Sekunden (0.5-3.0)"
-    FarIntervalSlider.Parent = SettingsFrame
-    
-    -- Nahes Update-Intervall
-    local NearIntervalLabel = Instance.new("TextLabel")
-    NearIntervalLabel.Name = "NearIntervalLabel"
-    NearIntervalLabel.Text = "Nahes Update-Intervall: " .. Config.NearUpdateInterval .. "s"
-    NearIntervalLabel.Size = UDim2.new(1, -20, 0, 25)
-    NearIntervalLabel.Position = UDim2.new(0, 10, 0, 165)
-    NearIntervalLabel.BackgroundTransparency = 1
-    NearIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    NearIntervalLabel.Font = Enum.Font.Gotham
-    NearIntervalLabel.TextSize = 14
-    NearIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
-    NearIntervalLabel.Parent = SettingsFrame
-    
-    local NearIntervalSlider = Instance.new("TextBox")
-    NearIntervalSlider.Name = "NearIntervalSlider"
-    NearIntervalSlider.Text = tostring(Config.NearUpdateInterval)
-    NearIntervalSlider.Size = UDim2.new(1, -20, 0, 30)
-    NearIntervalSlider.Position = UDim2.new(0, 10, 0, 190)
-    NearIntervalSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    NearIntervalSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    NearIntervalSlider.Font = Enum.Font.Gotham
-    NearIntervalSlider.TextSize = 14
-    NearIntervalSlider.PlaceholderText = "Sekunden (0.05-0.3)"
-    NearIntervalSlider.Parent = SettingsFrame
-    
-    -- Langsame Update-Distanz
-    local SlowDistLabel = Instance.new("TextLabel")
-    SlowDistLabel.Name = "SlowDistLabel"
-    SlowDistLabel.Text = "Langsame Update-Distanz: " .. Config.SlowUpdateDistance .. " Studs"
-    SlowDistLabel.Size = UDim2.new(1, -20, 0, 25)
-    SlowDistLabel.Position = UDim2.new(0, 10, 0, 230)
-    SlowDistLabel.BackgroundTransparency = 1
-    SlowDistLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    SlowDistLabel.Font = Enum.Font.Gotham
-    SlowDistLabel.TextSize = 14
-    SlowDistLabel.TextXAlignment = Enum.TextXAlignment.Left
-    SlowDistLabel.Parent = SettingsFrame
-    
-    local SlowDistSlider = Instance.new("TextBox")
-    SlowDistSlider.Name = "SlowDistSlider"
-    SlowDistSlider.Text = tostring(Config.SlowUpdateDistance)
-    SlowDistSlider.Size = UDim2.new(1, -20, 0, 30)
-    SlowDistSlider.Position = UDim2.new(0, 10, 0, 255)
-    SlowDistSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    SlowDistSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    SlowDistSlider.Font = Enum.Font.Gotham
-    SlowDistSlider.TextSize = 14
-    SlowDistSlider.PlaceholderText = "Studs (500-2000)"
-    SlowDistSlider.Parent = SettingsFrame
-    
-    -- Schnelle Update-Distanz
-    local FastDistLabel = Instance.new("TextLabel")
-    FastDistLabel.Name = "FastDistLabel"
-    FastDistLabel.Text = "Schnelle Update-Distanz: " .. Config.FastUpdateDistance .. " Studs"
-    FastDistLabel.Size = UDim2.new(1, -20, 0, 25)
-    FastDistLabel.Position = UDim2.new(0, 10, 0, 295)
-    FastDistLabel.BackgroundTransparency = 1
-    FastDistLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    FastDistLabel.Font = Enum.Font.Gotham
-    FastDistLabel.TextSize = 14
-    FastDistLabel.TextXAlignment = Enum.TextXAlignment.Left
-    FastDistLabel.Parent = SettingsFrame
-    
-    local FastDistSlider = Instance.new("TextBox")
-    FastDistSlider.Name = "FastDistSlider"
-    FastDistSlider.Text = tostring(Config.FastUpdateDistance)
-    FastDistSlider.Size = UDim2.new(1, -20, 0, 30)
-    FastDistSlider.Position = UDim2.new(0, 10, 0, 320)
-    FastDistSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    FastDistSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    FastDistSlider.Font = Enum.Font.Gotham
-    FastDistSlider.TextSize = 14
-    FastDistSlider.PlaceholderText = "Studs (100-800)"
-    FastDistSlider.Parent = SettingsFrame
-    
-    -- Statistik-Update-Intervall
-    local StatIntervalLabel = Instance.new("TextLabel")
-    StatIntervalLabel.Name = "StatIntervalLabel"
-    StatIntervalLabel.Text = "Statistik-Update: " .. Config.StatUpdateInterval .. "s"
-    StatIntervalLabel.Size = UDim2.new(1, -20, 0, 25)
-    StatIntervalLabel.Position = UDim2.new(0, 10, 0, 360)
-    StatIntervalLabel.BackgroundTransparency = 1
-    StatIntervalLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    StatIntervalLabel.Font = Enum.Font.Gotham
-    StatIntervalLabel.TextSize = 14
-    StatIntervalLabel.TextXAlignment = Enum.TextXAlignment.Left
-    StatIntervalLabel.Parent = SettingsFrame
-    
-    local StatIntervalSlider = Instance.new("TextBox")
-    StatIntervalSlider.Name = "StatIntervalSlider"
-    StatIntervalSlider.Text = tostring(Config.StatUpdateInterval)
-    StatIntervalSlider.Size = UDim2.new(1, -20, 0, 30)
-    StatIntervalSlider.Position = UDim2.new(0, 10, 0, 385)
-    StatIntervalSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-    StatIntervalSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-    StatIntervalSlider.Font = Enum.Font.Gotham
-    StatIntervalSlider.TextSize = 14
-    StatIntervalSlider.PlaceholderText = "Sekunden (5-60)"
-    StatIntervalSlider.Parent = SettingsFrame
-    
-    -- Startstation Auswahl Section
-    local StartStationLabel = Instance.new("TextLabel")
-    StartStationLabel.Name = "StartStationLabel"
-    StartStationLabel.Text = "🚦 STARTSTATION AUSWAHL"
-    StartStationLabel.Size = UDim2.new(1, -20, 0, 30)
-    StartStationLabel.Position = UDim2.new(0, 10, 0, 435)
-    StartStationLabel.BackgroundTransparency = 1
-    StartStationLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
-    StartStationLabel.Font = Enum.Font.GothamBold
-    StartStationLabel.TextSize = 16
-    StartStationLabel.TextXAlignment = Enum.TextXAlignment.Left
-    StartStationLabel.Parent = SettingsFrame
-    
-    local StartStationText = Instance.new("TextLabel")
-    StartStationText.Name = "StartStationText"
-    StartStationText.Text = "Aktuelle Startstation: Station " .. Config.StartStationIndex
-    StartStationText.Size = UDim2.new(1, -20, 0, 25)
-    StartStationText.Position = UDim2.new(0, 10, 0, 475)
-    StartStationText.BackgroundTransparency = 1
-    StartStationText.TextColor3 = Color3.fromRGB(200, 200, 255)
-    StartStationText.Font = Enum.Font.Gotham
-    StartStationText.TextSize = 14
-    StartStationText.TextXAlignment = Enum.TextXAlignment.Left
-    StartStationText.Parent = SettingsFrame
-    
-    -- Startstation Buttons
-    for i = 1, 4 do
-        local StartBtn = Instance.new("TextButton")
-        StartBtn.Name = "StartStationSettingBtn" .. i
-        StartBtn.Text = "Station " .. i
-        StartBtn.Size = UDim2.new(0.23, -2, 0, 30)
-        StartBtn.Position = UDim2.new((i-1) * 0.235, 10, 0, 510)
-        StartBtn.BackgroundColor3 = Config.StartStationIndex == i and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 80)
-        StartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        StartBtn.Font = Enum.Font.Gotham
-        StartBtn.TextSize = 12
-        StartBtn.Parent = SettingsFrame
-    end
-    
-    -- Fahrtparameter Section (weiter unten positioniert)
+    -- Fahrtparameter Section
     local FahrParamsLabel = Instance.new("TextLabel")
     FahrParamsLabel.Name = "FahrParamsLabel"
     FahrParamsLabel.Text = "⚙️ FAHRTPARAMETER"
     FahrParamsLabel.Size = UDim2.new(1, -20, 0, 30)
-    FahrParamsLabel.Position = UDim2.new(0, 10, 0, 560)
+    FahrParamsLabel.Position = UDim2.new(0, 10, 0, 10)
     FahrParamsLabel.BackgroundTransparency = 1
     FahrParamsLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
     FahrParamsLabel.Font = Enum.Font.GothamBold
@@ -805,12 +475,12 @@ function CreateTabContents(parent)
     FahrParamsLabel.TextXAlignment = Enum.TextXAlignment.Left
     FahrParamsLabel.Parent = SettingsFrame
     
-    -- Brems-Startdistanz (global)
+    -- Brems-Startdistanz Slider (GLOBALE EINSTELLUNG)
     local BrakeDistLabel = Instance.new("TextLabel")
     BrakeDistLabel.Name = "BrakeDistLabel"
     BrakeDistLabel.Text = "Globale Brems-Startdistanz: " .. Config.BrakeStartDistance .. " Studs"
     BrakeDistLabel.Size = UDim2.new(1, -20, 0, 25)
-    BrakeDistLabel.Position = UDim2.new(0, 10, 0, 600)
+    BrakeDistLabel.Position = UDim2.new(0, 10, 0, 50)
     BrakeDistLabel.BackgroundTransparency = 1
     BrakeDistLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     BrakeDistLabel.Font = Enum.Font.Gotham
@@ -822,12 +492,12 @@ function CreateTabContents(parent)
     BrakeDistSlider.Name = "BrakeDistSlider"
     BrakeDistSlider.Text = tostring(Config.BrakeStartDistance)
     BrakeDistSlider.Size = UDim2.new(1, -20, 0, 30)
-    BrakeDistSlider.Position = UDim2.new(0, 10, 0, 625)
+    BrakeDistSlider.Position = UDim2.new(0, 10, 0, 75)
     BrakeDistSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     BrakeDistSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
     BrakeDistSlider.Font = Enum.Font.Gotham
     BrakeDistSlider.TextSize = 14
-    BrakeDistSlider.PlaceholderText = "Studs (50-800)"
+    BrakeDistSlider.PlaceholderText = "Studs (50-500)"
     BrakeDistSlider.Parent = SettingsFrame
     
     -- Stop-Genauigkeit
@@ -835,7 +505,7 @@ function CreateTabContents(parent)
     StopDistLabel.Name = "StopDistLabel"
     StopDistLabel.Text = "Stop-Genauigkeit: " .. Config.StopDistance .. " Studs"
     StopDistLabel.Size = UDim2.new(1, -20, 0, 25)
-    StopDistLabel.Position = UDim2.new(0, 10, 0, 665)
+    StopDistLabel.Position = UDim2.new(0, 10, 0, 115)
     StopDistLabel.BackgroundTransparency = 1
     StopDistLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     StopDistLabel.Font = Enum.Font.Gotham
@@ -847,7 +517,7 @@ function CreateTabContents(parent)
     StopDistSlider.Name = "StopDistSlider"
     StopDistSlider.Text = tostring(Config.StopDistance)
     StopDistSlider.Size = UDim2.new(1, -20, 0, 30)
-    StopDistSlider.Position = UDim2.new(0, 10, 0, 690)
+    StopDistSlider.Position = UDim2.new(0, 10, 0, 140)
     StopDistSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     StopDistSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
     StopDistSlider.Font = Enum.Font.Gotham
@@ -860,7 +530,7 @@ function CreateTabContents(parent)
     WaitTimeLabel.Name = "WaitTimeLabel"
     WaitTimeLabel.Text = "Wartezeit an Station: " .. Config.WaitTimeAtStation .. "s"
     WaitTimeLabel.Size = UDim2.new(1, -20, 0, 25)
-    WaitTimeLabel.Position = UDim2.new(0, 10, 0, 730)
+    WaitTimeLabel.Position = UDim2.new(0, 10, 0, 180)
     WaitTimeLabel.BackgroundTransparency = 1
     WaitTimeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     WaitTimeLabel.Font = Enum.Font.Gotham
@@ -872,7 +542,7 @@ function CreateTabContents(parent)
     WaitTimeSlider.Name = "WaitTimeSlider"
     WaitTimeSlider.Text = tostring(Config.WaitTimeAtStation)
     WaitTimeSlider.Size = UDim2.new(1, -20, 0, 30)
-    WaitTimeSlider.Position = UDim2.new(0, 10, 0, 755)
+    WaitTimeSlider.Position = UDim2.new(0, 10, 0, 205)
     WaitTimeSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     WaitTimeSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
     WaitTimeSlider.Font = Enum.Font.Gotham
@@ -885,7 +555,7 @@ function CreateTabContents(parent)
     SlowSpeedLabel.Name = "SlowSpeedLabel"
     SlowSpeedLabel.Text = "Langsame Annäherung: " .. (Config.SlowApproachSpeed or "0.1")
     SlowSpeedLabel.Size = UDim2.new(1, -20, 0, 25)
-    SlowSpeedLabel.Position = UDim2.new(0, 10, 0, 795)
+    SlowSpeedLabel.Position = UDim2.new(0, 10, 0, 245)
     SlowSpeedLabel.BackgroundTransparency = 1
     SlowSpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     SlowSpeedLabel.Font = Enum.Font.Gotham
@@ -897,7 +567,7 @@ function CreateTabContents(parent)
     SlowSpeedSlider.Name = "SlowSpeedSlider"
     SlowSpeedSlider.Text = tostring(Config.SlowApproachSpeed or 0.1)
     SlowSpeedSlider.Size = UDim2.new(1, -20, 0, 30)
-    SlowSpeedSlider.Position = UDim2.new(0, 10, 0, 820)
+    SlowSpeedSlider.Position = UDim2.new(0, 10, 0, 270)
     SlowSpeedSlider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     SlowSpeedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
     SlowSpeedSlider.Font = Enum.Font.Gotham
@@ -910,7 +580,7 @@ function CreateTabContents(parent)
     DoorSettingsLabel.Name = "DoorSettingsLabel"
     DoorSettingsLabel.Text = "🚪 TÜRSTEUERUNG"
     DoorSettingsLabel.Size = UDim2.new(1, -20, 0, 30)
-    DoorSettingsLabel.Position = UDim2.new(0, 10, 0, 870)
+    DoorSettingsLabel.Position = UDim2.new(0, 10, 0, 315)
     DoorSettingsLabel.BackgroundTransparency = 1
     DoorSettingsLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
     DoorSettingsLabel.Font = Enum.Font.GothamBold
@@ -923,7 +593,7 @@ function CreateTabContents(parent)
     OpenDoorsToggle.Name = "OpenDoorsToggle"
     OpenDoorsToggle.Text = "Türen öffnen: " .. (Config.OpenDoors and "✅ AN" or "❌ AUS")
     OpenDoorsToggle.Size = UDim2.new(1, -20, 0, 40)
-    OpenDoorsToggle.Position = UDim2.new(0, 10, 0, 910)
+    OpenDoorsToggle.Position = UDim2.new(0, 10, 0, 355)
     OpenDoorsToggle.BackgroundColor3 = Config.OpenDoors and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
     OpenDoorsToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
     OpenDoorsToggle.Font = Enum.Font.Gotham
@@ -935,7 +605,7 @@ function CreateTabContents(parent)
     DoorSideLabel.Name = "DoorSideLabel"
     DoorSideLabel.Text = "Türseite: " .. (Config.DoorSide == 0 and "Links (X)" or Config.DoorSide == 1 and "Rechts (C)" or "Beide")
     DoorSideLabel.Size = UDim2.new(1, -20, 0, 25)
-    DoorSideLabel.Position = UDim2.new(0, 10, 0, 960)
+    DoorSideLabel.Position = UDim2.new(0, 10, 0, 405)
     DoorSideLabel.BackgroundTransparency = 1
     DoorSideLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     DoorSideLabel.Font = Enum.Font.Gotham
@@ -947,7 +617,7 @@ function CreateTabContents(parent)
     DoorSideLeft.Name = "DoorSideLeft"
     DoorSideLeft.Text = "Links (X)"
     DoorSideLeft.Size = UDim2.new(0.3, -5, 0, 30)
-    DoorSideLeft.Position = UDim2.new(0, 10, 0, 990)
+    DoorSideLeft.Position = UDim2.new(0, 10, 0, 435)
     DoorSideLeft.BackgroundColor3 = Config.DoorSide == 0 and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(60, 60, 80)
     DoorSideLeft.TextColor3 = Color3.fromRGB(255, 255, 255)
     DoorSideLeft.Font = Enum.Font.Gotham
@@ -958,7 +628,7 @@ function CreateTabContents(parent)
     DoorSideRight.Name = "DoorSideRight"
     DoorSideRight.Text = "Rechts (C)"
     DoorSideRight.Size = UDim2.new(0.3, -5, 0, 30)
-    DoorSideRight.Position = UDim2.new(0.35, 0, 0, 990)
+    DoorSideRight.Position = UDim2.new(0.35, 0, 0, 435)
     DoorSideRight.BackgroundColor3 = Config.DoorSide == 1 and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(60, 60, 80)
     DoorSideRight.TextColor3 = Color3.fromRGB(255, 255, 255)
     DoorSideRight.Font = Enum.Font.Gotham
@@ -969,7 +639,7 @@ function CreateTabContents(parent)
     DoorSideBoth.Name = "DoorSideBoth"
     DoorSideBoth.Text = "Beide"
     DoorSideBoth.Size = UDim2.new(0.3, -5, 0, 30)
-    DoorSideBoth.Position = UDim2.new(0.7, 0, 0, 990)
+    DoorSideBoth.Position = UDim2.new(0.7, 0, 0, 435)
     DoorSideBoth.BackgroundColor3 = Config.DoorSide == 2 and Color3.fromRGB(0, 100, 200) or Color3.fromRGB(60, 60, 80)
     DoorSideBoth.TextColor3 = Color3.fromRGB(255, 255, 255)
     DoorSideBoth.Font = Enum.Font.Gotham
@@ -981,7 +651,7 @@ function CreateTabContents(parent)
     AutoPilotSettingsLabel.Name = "AutoPilotSettingsLabel"
     AutoPilotSettingsLabel.Text = "🤖 AUTOPILOT EINSTELLUNGEN"
     AutoPilotSettingsLabel.Size = UDim2.new(1, -20, 0, 30)
-    AutoPilotSettingsLabel.Position = UDim2.new(0, 10, 0, 1040)
+    AutoPilotSettingsLabel.Position = UDim2.new(0, 10, 0, 485)
     AutoPilotSettingsLabel.BackgroundTransparency = 1
     AutoPilotSettingsLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
     AutoPilotSettingsLabel.Font = Enum.Font.GothamBold
@@ -994,7 +664,7 @@ function CreateTabContents(parent)
     StopEveryStationToggle.Name = "StopEveryStationToggle"
     StopEveryStationToggle.Text = "An jeder Station halten: " .. (Config.StopAtEveryStation and "✅ AN" or "❌ AUS")
     StopEveryStationToggle.Size = UDim2.new(1, -20, 0, 40)
-    StopEveryStationToggle.Position = UDim2.new(0, 10, 0, 1080)
+    StopEveryStationToggle.Position = UDim2.new(0, 10, 0, 525)
     StopEveryStationToggle.BackgroundColor3 = Config.StopAtEveryStation and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
     StopEveryStationToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
     StopEveryStationToggle.Font = Enum.Font.Gotham
@@ -1006,7 +676,7 @@ function CreateTabContents(parent)
     AutoStartToggle.Name = "AutoStartToggle"
     AutoStartToggle.Text = "Auto-Start: " .. (Config.AutoStart and "✅ AN" or "❌ AUS")
     AutoStartToggle.Size = UDim2.new(1, -20, 0, 40)
-    AutoStartToggle.Position = UDim2.new(0, 10, 0, 1130)
+    AutoStartToggle.Position = UDim2.new(0, 10, 0, 575)
     AutoStartToggle.BackgroundColor3 = Config.AutoStart and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
     AutoStartToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
     AutoStartToggle.Font = Enum.Font.Gotham
@@ -1018,7 +688,7 @@ function CreateTabContents(parent)
     DebugToggle.Name = "DebugToggle"
     DebugToggle.Text = "Debug Modus: " .. (Config.DebugMode and "✅ AN" or "❌ AUS")
     DebugToggle.Size = UDim2.new(1, -20, 0, 40)
-    DebugToggle.Position = UDim2.new(0, 10, 0, 1180)
+    DebugToggle.Position = UDim2.new(0, 10, 0, 625)
     DebugToggle.BackgroundColor3 = Config.DebugMode and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
     DebugToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
     DebugToggle.Font = Enum.Font.Gotham
@@ -1030,7 +700,7 @@ function CreateTabContents(parent)
     ExitScriptBtn.Name = "ExitScriptBtn"
     ExitScriptBtn.Text = "⚠️ SCRIPT BEENDEN"
     ExitScriptBtn.Size = UDim2.new(1, -20, 0, 45)
-    ExitScriptBtn.Position = UDim2.new(0, 10, 0, 1240)
+    ExitScriptBtn.Position = UDim2.new(0, 10, 0, 685)
     ExitScriptBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     ExitScriptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     ExitScriptBtn.Font = Enum.Font.GothamBold
@@ -1042,7 +712,7 @@ function CreateTabContents(parent)
     SaveSettingsBtn.Name = "SaveSettingsBtn"
     SaveSettingsBtn.Text = "💾 EINSTELLUNGEN SPEICHERN"
     SaveSettingsBtn.Size = UDim2.new(1, -20, 0, 45)
-    SaveSettingsBtn.Position = UDim2.new(0, 10, 0, 1295)
+    SaveSettingsBtn.Position = UDim2.new(0, 10, 0, 740)
     SaveSettingsBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
     SaveSettingsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     SaveSettingsBtn.Font = Enum.Font.GothamBold
@@ -1058,10 +728,104 @@ function CreateTabContents(parent)
     DiscordFrame.Visible = false
     DiscordFrame.Parent = parent
     
-    -- Stats TAB (MIT PERFORMANCE-STATS)
+    -- Webhook URL
+    local WebhookLabel = Instance.new("TextLabel")
+    WebhookLabel.Name = "WebhookLabel"
+    WebhookLabel.Text = "🔗 DISCORD WEBHOOK URL"
+    WebhookLabel.Size = UDim2.new(1, -20, 0, 30)
+    WebhookLabel.Position = UDim2.new(0, 10, 0, 10)
+    WebhookLabel.BackgroundTransparency = 1
+    WebhookLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+    WebhookLabel.Font = Enum.Font.GothamBold
+    WebhookLabel.TextSize = 16
+    WebhookLabel.TextXAlignment = Enum.TextXAlignment.Left
+    WebhookLabel.Parent = DiscordFrame
+    
+    local WebhookInput = Instance.new("TextBox")
+    WebhookInput.Name = "WebhookInput"
+    WebhookInput.Text = Config.Webhook
+    WebhookInput.Size = UDim2.new(1, -20, 0, 40)
+    WebhookInput.Position = UDim2.new(0, 10, 0, 50)
+    WebhookInput.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    WebhookInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    WebhookInput.Font = Enum.Font.Gotham
+    WebhookInput.TextSize = 14
+    WebhookInput.PlaceholderText = "https://discord.com/api/webhooks/..."
+    WebhookInput.Parent = DiscordFrame
+    
+    -- Webhook Events
+    local EventsLabel = Instance.new("TextLabel")
+    EventsLabel.Name = "EventsLabel"
+    EventsLabel.Text = "🔔 BENACHRICHTIGUNGEN"
+    EventsLabel.Size = UDim2.new(1, -20, 0, 30)
+    EventsLabel.Position = UDim2.new(0, 10, 0, 110)
+    EventsLabel.BackgroundTransparency = 1
+    EventsLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+    EventsLabel.Font = Enum.Font.GothamBold
+    EventsLabel.TextSize = 16
+    EventsLabel.TextXAlignment = Enum.TextXAlignment.Left
+    EventsLabel.Parent = DiscordFrame
+    
+    local EventMoneyToggle = Instance.new("TextButton")
+    EventMoneyToggle.Name = "EventMoneyToggle"
+    EventMoneyToggle.Text = "💰 Geld verdient (+350€): " .. (Config.WebhookEvents.MoneyEarned and "✅ AN" or "❌ AUS")
+    EventMoneyToggle.Size = UDim2.new(1, -20, 0, 35)
+    EventMoneyToggle.Position = UDim2.new(0, 10, 0, 150)
+    EventMoneyToggle.BackgroundColor3 = Config.WebhookEvents.MoneyEarned and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+    EventMoneyToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    EventMoneyToggle.Font = Enum.Font.Gotham
+    EventMoneyToggle.TextSize = 12
+    EventMoneyToggle.Parent = DiscordFrame
+    
+    local EventAutoToggle = Instance.new("TextButton")
+    EventAutoToggle.Name = "EventAutoToggle"
+    EventAutoToggle.Text = "🚂 Autopilot Start/Stop: " .. (Config.WebhookEvents.AutoPilotToggle and "✅ AN" or "❌ AUS")
+    EventAutoToggle.Size = UDim2.new(1, -20, 0, 35)
+    EventAutoToggle.Position = UDim2.new(0, 10, 0, 195)
+    EventAutoToggle.BackgroundColor3 = Config.WebhookEvents.AutoPilotToggle and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+    EventAutoToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    EventAutoToggle.Font = Enum.Font.Gotham
+    EventAutoToggle.TextSize = 12
+    EventAutoToggle.Parent = DiscordFrame
+    
+    local EventSystemToggle = Instance.new("TextButton")
+    EventSystemToggle.Name = "EventSystemToggle"
+    EventSystemToggle.Text = "⚙️ System Start: " .. (Config.WebhookEvents.SystemStart and "✅ AN" or "❌ AUS")
+    EventSystemToggle.Size = UDim2.new(1, -20, 0, 35)
+    EventSystemToggle.Position = UDim2.new(0, 10, 0, 240)
+    EventSystemToggle.BackgroundColor3 = Config.WebhookEvents.SystemStart and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+    EventSystemToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    EventSystemToggle.Font = Enum.Font.Gotham
+    EventSystemToggle.TextSize = 12
+    EventSystemToggle.Parent = DiscordFrame
+    
+    -- Test Buttons
+    local TestWebhookBtn = Instance.new("TextButton")
+    TestWebhookBtn.Name = "TestWebhookBtn"
+    TestWebhookBtn.Text = "🔔 TEST-WEBHOOK SENDEN"
+    TestWebhookBtn.Size = UDim2.new(1, -20, 0, 45)
+    TestWebhookBtn.Position = UDim2.new(0, 10, 0, 300)
+    TestWebhookBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
+    TestWebhookBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TestWebhookBtn.Font = Enum.Font.GothamBold
+    TestWebhookBtn.TextSize = 16
+    TestWebhookBtn.Parent = DiscordFrame
+    
+    local TestMoneyBtn = Instance.new("TextButton")
+    TestMoneyBtn.Name = "TestMoneyBtn"
+    TestMoneyBtn.Text = "💰 TEST-GELDBENACHRICHTIGUNG"
+    TestMoneyBtn.Size = UDim2.new(1, -20, 0, 45)
+    TestMoneyBtn.Position = UDim2.new(0, 10, 0, 355)
+    TestMoneyBtn.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+    TestMoneyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TestMoneyBtn.Font = Enum.Font.GothamBold
+    TestMoneyBtn.TextSize = 16
+    TestMoneyBtn.Parent = DiscordFrame
+    
+    -- Stats TAB
     local StatsFrame = Instance.new("Frame")
     StatsFrame.Name = "StatsFrame"
-    StatsFrame.Size = UDim2.new(1, 0, 0, 580)
+    StatsFrame.Size = UDim2.new(1, 0, 0, 500)
     StatsFrame.Position = UDim2.new(0, 0, 0, 0)
     StatsFrame.BackgroundTransparency = 1
     StatsFrame.Visible = false
@@ -1079,7 +843,7 @@ function CreateTabContents(parent)
     StatsTitle.TextXAlignment = Enum.TextXAlignment.Left
     StatsTitle.Parent = StatsFrame
     
-    -- Statistik Labels (ERWEITERT)
+    -- Statistik Labels
     local statEntries = {
         {name = "Gesamtfahrten", value = "0", y = 60},
         {name = "Gesamtgeld", value = "0€", y = 100},
@@ -1087,22 +851,17 @@ function CreateTabContents(parent)
         {name = "Geld/Stunde", value = "0€/h", y = 180},
         {name = "Fahrten/Stunde", value = "0/h", y = 220},
         {name = "Aktuelle Station", value = "--", y = 260},
-        {name = "Startstation", value = "Station " .. Config.StartStationIndex, y = 300},
-        {name = "⚡ Performance-Modus", value = "--", y = 340},
-        {name = "⚡ Aktuelles Update", value = "--", y = 380},
-        {name = "⚡ Fast-Mode Count", value = "0", y = 420},
-        {name = "⚡ Slow-Mode Count", value = "0", y = 460},
-        {name = "Station 1 Besuche", value = "0", y = 500},
-        {name = "Station 2 Besuche", value = "0", y = 540},
-        {name = "Station 3 Besuche", value = "0", y = 580},
-        {name = "Station 4 Besuche", value = "0", y = 620}
+        {name = "Station 1 Besuche", value = "0", y = 300},
+        {name = "Station 2 Besuche", value = "0", y = 340},
+        {name = "Station 3 Besuche", value = "0", y = 380},
+        {name = "Station 4 Besuche", value = "0", y = 420}
     }
     
     for i, entry in ipairs(statEntries) do
         local label = Instance.new("TextLabel")
         label.Name = "StatLabel" .. i
         label.Text = entry.name .. ": " .. entry.value
-        label.Size = UDim2.new(1, -20, 0, 25)
+        label.Size = UDim2.new(1, -20, 0, 30)
         label.Position = UDim2.new(0, 10, 0, entry.y)
         label.BackgroundTransparency = 1
         label.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -1117,7 +876,7 @@ function CreateTabContents(parent)
     ResetStatsBtn.Name = "ResetStatsBtn"
     ResetStatsBtn.Text = "🔄 STATISTIKEN ZURÜCKSETZEN"
     ResetStatsBtn.Size = UDim2.new(1, -20, 0, 45)
-    ResetStatsBtn.Position = UDim2.new(0, 10, 0, 660)
+    ResetStatsBtn.Position = UDim2.new(0, 10, 0, 470)
     ResetStatsBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
     ResetStatsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     ResetStatsBtn.Font = Enum.Font.GothamBold
@@ -1211,6 +970,7 @@ function SimulateKeyPress(keyCode)
     end
 end
 
+
 function SaveStationPosition(stationIndex)
     local char = LocalPlayer.Character
     if not char then
@@ -1226,10 +986,9 @@ function SaveStationPosition(stationIndex)
     
     local stationKey = "Station" .. stationIndex
     if not Config.Stations[stationKey] then
-        Config.Stations[stationKey] = {Position = nil, Name = "Station " .. stationIndex, Active = true, BrakeStartDistance = nil}
+        Config.Stations[stationKey] = {Position = nil, Name = "Station " .. stationIndex, Active = true}
     end
     
-    -- Position speichern
     Config.Stations[stationKey].Position = root.Position
     
     -- GUI Update
@@ -1239,21 +998,11 @@ function SaveStationPosition(stationIndex)
         statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
     
-    local posLabel = ScreenGui.MainFrame.ContentFrame.HaltestellenFrame:FindFirstChild("StationPos" .. stationIndex)
-    if posLabel then
-        posLabel.Text = "Position: X=" .. math.floor(root.Position.X) .. " Y=" .. math.floor(root.Position.Y) .. " Z=" .. math.floor(root.Position.Z)
-        posLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-    end
-    
     Log("✅ Haltestelle " .. stationIndex .. " gespeichert")
-    
-    -- SPEICHERN NICHT VERGESSEN!
     SaveConfig()
 end
 
-
-
--- // VERBESSERTE FAHRLOGIK MIT INTELLIGENTER BREMSUNG & ADAPTIVEM UPDATE // --
+-- // VERBESSERTE FAHRLOGIK MIT INTELLIGENTER BREMSUNG // --
 function DriveToStation(stationPosition)
     if not stationPosition then return "Keine Position" end
     
@@ -1265,10 +1014,6 @@ function DriveToStation(stationPosition)
     
     local VIM = game:GetService("VirtualInputManager")
     local distance = (root.Position - stationPosition).Magnitude
-    LastDistanceToStation = distance
-    
-    -- Speichere Distanz für adaptive Performance
-    Stats.PerformanceStats.UpdatesTotal = Stats.PerformanceStats.UpdatesTotal + 1
     
     -- Hole individuelle Bremsdistanz für diese Station
     local brakeDistance = GetBrakeDistanceForStation(CurrentStationIndex)
@@ -1469,7 +1214,7 @@ function ProcessStationStop(stationIndex)
         SendMoneyNotification(station.Name)
     end
     
-    -- Statistik Update (sofort nach Station)
+    -- Statistik Update
     UpdateStatistics()
     
     -- GUI Update
@@ -1482,15 +1227,6 @@ end
 function UpdateStatistics()
     if not ScreenGui then return end
     
-    if not Stats.PerformanceStats then
-    Stats.PerformanceStats = {
-        FastModeCount = 0,
-        SlowModeCount = 0,
-        UpdatesTotal = 0,
-        LastSwitchTime = 0
-       }
-    end
-
     local statsFrame = ScreenGui.MainFrame.ContentFrame.StatsFrame
     if not statsFrame then return end
     
@@ -1517,11 +1253,6 @@ function UpdateStatistics()
     local currentStation = Config.Stations["Station" .. CurrentStationIndex]
     local stationName = currentStation and currentStation.Name or "--"
     
-    -- Performance-Modus
-    local perfMode = Config.AdaptiveUpdate and "Adaptiv" or "Standard"
-    local updateMode = FastModeActive and "Schnell" or "Langsam"
-    local currentUpdate = string.format("%.2fs", CurrentUpdateInterval)
-    
     -- Labels aktualisieren
     local labels = {
         {name = "Gesamtfahrten", value = TripsCompleted},
@@ -1530,11 +1261,6 @@ function UpdateStatistics()
         {name = "Geld/Stunde", value = moneyPerHour .. "€/h"},
         {name = "Fahrten/Stunde", value = tripsPerHour .. "/h"},
         {name = "Aktuelle Station", value = stationName},
-        {name = "Startstation", value = "Station " .. Config.StartStationIndex},
-        {name = "⚡ Performance-Modus", value = perfMode},
-        {name = "⚡ Aktuelles Update", value = currentUpdate .. " (" .. updateMode .. ")"},
-        {name = "⚡ Fast-Mode Count", value = Stats.PerformanceStats.FastModeCount},
-        {name = "⚡ Slow-Mode Count", value = Stats.PerformanceStats.SlowModeCount},
         {name = "Station 1 Besuche", value = Stats.StationVisits[1] or 0},
         {name = "Station 2 Besuche", value = Stats.StationVisits[2] or 0},
         {name = "Station 3 Besuche", value = Stats.StationVisits[3] or 0},
@@ -1546,19 +1272,6 @@ function UpdateStatistics()
         if label then
             label.Text = labelInfo.name .. ": " .. tostring(labelInfo.value)
         end
-    end
-    
-    -- Update Performance-Label in Autopilot Tab
-    local perfLabel = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("PerfLabel")
-    if perfLabel then
-        perfLabel.Text = "⚡ Performance: " .. perfMode .. " | Update: " .. currentUpdate .. "s"
-        perfLabel.TextColor3 = FastModeActive and Color3.fromRGB(255, 150, 0) or Color3.fromRGB(150, 200, 255)
-    end
-    
-    -- Update Startstation Label in Autopilot Tab
-    local startLabel = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationLabel")
-    if startLabel then
-        startLabel.Text = "🚦 STARTSTATION: Station " .. Config.StartStationIndex
     end
 end
 
@@ -1578,7 +1291,7 @@ function SendMoneyNotification(stationName)
             color = 3066993,
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
             footer = {
-                text = "RailMaster Pro v5.3"
+                text = "RailMaster Pro v5.1"
             }
         }}
     }
@@ -1619,8 +1332,7 @@ function UpdateActionLabel(text)
     
     local actionLabel = ScreenGui.MainFrame.StatusBar.ActionLabel
     if actionLabel then
-        local perfInfo = FastModeActive and "⚡" or "🐢"
-        actionLabel.Text = "Aktion: " .. text .. " | Update: " .. string.format("%.2fs", CurrentUpdateInterval) .. " " .. perfInfo
+        actionLabel.Text = "Aktion: " .. text
     end
 end
 
@@ -1629,12 +1341,7 @@ function UpdateNextStationLabel(text)
     
     local nextLabel = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("NextStationLabel")
     if nextLabel then
-        local distance = LastDistanceToStation
-        if distance < 9999 then
-            nextLabel.Text = "Nächster Halt: " .. text .. " (" .. math.floor(distance) .. " Studs)"
-        else
-            nextLabel.Text = "Nächster Halt: " .. text
-        end
+        nextLabel.Text = "Nächster Halt: " .. text
     end
 end
 
@@ -1661,36 +1368,22 @@ function StartAutopilot()
     end
     
     IsRunning = true
-    FastModeActive = true -- Starte im schnellen Modus
-    CurrentUpdateInterval = Config.NearUpdateInterval
     UpdateGUI()
     UpdateActionLabel("Autopilot gestartet")
     
-    -- NEU: Starte von der gewählten Startstation
-    CurrentStationIndex = Config.StartStationIndex
+    CurrentStationIndex = 1
     
     AutoPilotThread = task.spawn(function()
-        while IsRunning do
-            -- Adaptive Performance: Update-Intervall berechnen
-            local distanceToStation = GetDistanceToCurrentStation()
-            CurrentUpdateInterval = CalculateAdaptiveInterval(distanceToStation)
-            
-            -- Statistik-Update nur alle X Sekunden
-            local currentTime = os.time()
-            if currentTime - LastStatUpdate >= Config.StatUpdateInterval then
-                UpdateStatistics()
-                LastStatUpdate = currentTime
-            end
-            
+        while IsRunning and task.wait(0.1) do
             -- Aktuelle Station
             local station = Config.Stations["Station" .. CurrentStationIndex]
             
             if not station or not station.Position or not station.Active then
                 -- Nächste aktive Station suchen
                 for i = 1, 4 do
-                    local nextStation = Config.Stations["Station" .. ((CurrentStationIndex + i - 1) % 4 + 1)]
+                    local nextStation = Config.Stations["Station" .. i]
                     if nextStation and nextStation.Position and nextStation.Active then
-                        CurrentStationIndex = ((CurrentStationIndex + i - 1) % 4 + 1)
+                        CurrentStationIndex = i
                         station = nextStation
                         break
                     end
@@ -1699,12 +1392,13 @@ function StartAutopilot()
             
             if not station or not station.Position then
                 UpdateActionLabel("Keine gültige Station")
-                task.wait(CurrentUpdateInterval)
+                task.wait(2)
                 continue
             end
             
             -- GUI Updates
             UpdateNextStationLabel(station.Name)
+            UpdateStatistics()
             
             -- Zur Station fahren
             local action = DriveToStation(station.Position)
@@ -1759,11 +1453,8 @@ function StartAutopilot()
                 IsBraking = false
                 LastPosition = nil
                 LastDistance = nil
-                task.wait(CurrentUpdateInterval)
+                task.wait(1)
             end
-            
-            -- Adaptive Wartezeit basierend auf Performance-Modus
-            task.wait(CurrentUpdateInterval)
         end
     end)
 end
@@ -1771,7 +1462,6 @@ end
 function StopAutopilot()
     IsRunning = false
     IsBraking = false
-    FastModeActive = false
     
     if AutoPilotThread then
         task.cancel(AutoPilotThread)
@@ -1787,15 +1477,11 @@ function StopAutopilot()
     UpdateGUI()
     UpdateActionLabel("Autopilot gestoppt")
     UpdateNextStationLabel("--")
-    
-    -- Letztes Statistik-Update
-    UpdateStatistics()
 end
 
 function EmergencyStop()
     IsRunning = false
     IsBraking = false
-    FastModeActive = false
     
     -- Sofort bremsen
     local VIM = game:GetService("VirtualInputManager")
@@ -1827,7 +1513,7 @@ function SaveConfig()
     if success then
         if writefile then
             writefile("railmaster_config_v5.json", jsonData)
-            Log("✅ Konfiguration gespeichert (inkl. Bahnhofs-Positionen)")
+            Log("✅ Konfiguration gespeichert")
         else
             Log("⚠️ writefile nicht verfügbar, Config nicht gespeichert")
         end
@@ -1843,130 +1529,20 @@ function LoadConfig()
         end)
         
         if success and data then
-            -- Config laden
-            if data.Config then
-                -- WICHTIG: Stationen-Positionen korrekt übernehmen
-                if data.Config.Stations then
-                    for i = 1, 4 do
-                        local stationKey = "Station" .. i
-                        if data.Config.Stations[stationKey] then
-                            -- Position als Vector3 wiederherstellen
-                            if data.Config.Stations[stationKey].Position then
-                                local pos = data.Config.Stations[stationKey].Position
-                                Config.Stations[stationKey].Position = Vector3.new(pos.X, pos.Y, pos.Z)
-                            end
-                            
-                            -- BrakeStartDistance übernehmen
-                            Config.Stations[stationKey].BrakeStartDistance = data.Config.Stations[stationKey].BrakeStartDistance
-                            
-                            -- Name übernehmen
-                            if data.Config.Stations[stationKey].Name then
-                                Config.Stations[stationKey].Name = data.Config.Stations[stationKey].Name
-                            end
-                            
-                            -- Active Status übernehmen
-                            if data.Config.Stations[stationKey].Active ~= nil then
-                                Config.Stations[stationKey].Active = data.Config.Stations[stationKey].Active
-                            end
-                        end
-                    end
-                end
-                
-                -- Andere Config-Werte übernehmen
-                if data.Config.BrakeStartDistance then Config.BrakeStartDistance = data.Config.BrakeStartDistance end
-                if data.Config.Webhook then Config.Webhook = data.Config.Webhook end
-                if data.Config.StartStationIndex then Config.StartStationIndex = data.Config.StartStationIndex end
-                -- Füge weitere Config-Werte hier hinzu...
-            end
-            
+            Config = data.Config or Config
             TotalMoney = data.TotalMoney or 0
             TripsCompleted = data.TripsCompleted or 0
-            
-            Log("✅ Konfiguration geladen (inkl. Bahnhofs-Positionen)")
-            
-            -- GUI sofort aktualisieren nach dem Laden
-            task.wait(1)
-            UpdateStationDisplay()
-        else
-            Log("❌ Fehler beim Laden der Konfiguration")
+            Stats = data.Stats or Stats
+            Log("✅ Konfiguration geladen")
         end
     else
         Log("ℹ️ Keine gespeicherte Konfiguration gefunden")
     end
 end
 
-function UpdateStationDisplay()
-    if not ScreenGui then return end
-    
-    local stationsFrame = ScreenGui.MainFrame.ContentFrame:FindFirstChild("HaltestellenFrame")
-    if not stationsFrame then return end
-    
-    for i = 1, 4 do
-        local station = Config.Stations["Station" .. i]
-        local statusLabel = stationsFrame:FindFirstChild("StationStatus" .. i)
-        local posLabel = stationsFrame:FindFirstChild("StationPos" .. i)
-        
-        if station and statusLabel and posLabel then
-            if station.Position then
-                statusLabel.Text = "✓ Gespeichert"
-                statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                posLabel.Text = string.format("Position: X=%.0f Y=%.0f Z=%.0f", 
-                    station.Position.X, station.Position.Y, station.Position.Z)
-                posLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-            else
-                statusLabel.Text = "Nicht gespeichert"
-                statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-                posLabel.Text = "Position: Nicht gespeichert"
-                posLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-            end
-        end
-    end
-end
-
 function ApplySettingsFromGUI()
     -- Hole Werte aus GUI
     local settingsFrame = ScreenGui.MainFrame.ContentFrame.EinstellungenFrame
-    
-    -- Performance Einstellungen
-    local farIntervalBox = settingsFrame:FindFirstChild("FarIntervalSlider")
-    if farIntervalBox and farIntervalBox.Text ~= "" then
-        local value = tonumber(farIntervalBox.Text)
-        if value and value >= 0.5 and value <= 3.0 then
-            Config.FarUpdateInterval = value
-        end
-    end
-    
-    local nearIntervalBox = settingsFrame:FindFirstChild("NearIntervalSlider")
-    if nearIntervalBox and nearIntervalBox.Text ~= "" then
-        local value = tonumber(nearIntervalBox.Text)
-        if value and value >= 0.05 and value <= 0.3 then
-            Config.NearUpdateInterval = value
-        end
-    end
-    
-    local slowDistBox = settingsFrame:FindFirstChild("SlowDistSlider")
-    if slowDistBox and slowDistBox.Text ~= "" then
-        local value = tonumber(slowDistBox.Text)
-        if value and value >= 500 and value <= 2000 then
-            Config.SlowUpdateDistance = value
-        end
-    end
-    
-    local fastDistBox = settingsFrame:FindFirstChild("FastDistSlider")
-    if fastDistBox and fastDistBox.Text ~= "" then
-        local value = tonumber(fastDistBox.Text)
-        if value and value >= 100 and value <= 800 then
-            Config.FastUpdateDistance = value
-        end
-    end
-    
-    local statIntervalBox = settingsFrame:FindFirstChild("StatIntervalSlider")
-    if statIntervalBox and statIntervalBox.Text ~= "" then
-        local value = tonumber(statIntervalBox.Text)
-        if value and value >= 5 and value <= 60 then
-            Config.StatUpdateInterval = value
-        end
-    end
     
     -- Brems-Startdistanz (global)
     local brakeDistBox = settingsFrame:FindFirstChild("BrakeDistSlider")
@@ -2005,31 +1581,6 @@ function ApplySettingsFromGUI()
     end
     
     -- Labels aktualisieren
-    local farIntervalLabel = settingsFrame:FindFirstChild("FarIntervalLabel")
-    if farIntervalLabel then
-        farIntervalLabel.Text = "Fernes Update-Intervall: " .. Config.FarUpdateInterval .. "s"
-    end
-    
-    local nearIntervalLabel = settingsFrame:FindFirstChild("NearIntervalLabel")
-    if nearIntervalLabel then
-        nearIntervalLabel.Text = "Nahes Update-Intervall: " .. Config.NearUpdateInterval .. "s"
-    end
-    
-    local slowDistLabel = settingsFrame:FindFirstChild("SlowDistLabel")
-    if slowDistLabel then
-        slowDistLabel.Text = "Langsame Update-Distanz: " .. Config.SlowUpdateDistance .. " Studs"
-    end
-    
-    local fastDistLabel = settingsFrame:FindFirstChild("FastDistLabel")
-    if fastDistLabel then
-        fastDistLabel.Text = "Schnelle Update-Distanz: " .. Config.FastUpdateDistance .. " Studs"
-    end
-    
-    local statIntervalLabel = settingsFrame:FindFirstChild("StatIntervalLabel")
-    if statIntervalLabel then
-        statIntervalLabel.Text = "Statistik-Update: " .. Config.StatUpdateInterval .. "s"
-    end
-    
     local brakeDistLabel = settingsFrame:FindFirstChild("BrakeDistLabel")
     if brakeDistLabel then
         brakeDistLabel.Text = "Globale Brems-Startdistanz: " .. Config.BrakeStartDistance .. " Studs"
@@ -2050,18 +1601,13 @@ function ApplySettingsFromGUI()
         slowSpeedLabel.Text = "Langsame Annäherung: " .. Config.SlowApproachSpeed
     end
     
-    local startStationText = settingsFrame:FindFirstChild("StartStationText")
-    if startStationText then
-        startStationText.Text = "Aktuelle Startstation: Station " .. Config.StartStationIndex
-    end
-    
     SaveConfig()
     Log("✅ Einstellungen übernommen")
 end
 
 function Log(message)
     if Config.DebugMode then
-        print("[RailMaster v5.3] " .. message)
+        print("[RailMaster v5.1] " .. message)
     end
 end
 
@@ -2087,7 +1633,6 @@ function ExitScript()
     IsRunning = false
     EmergencyBrake = true
     IsBraking = false
-    FastModeActive = false
     
     -- Bremsen für Notstopp
     local VIM = game:GetService("VirtualInputManager")
@@ -2184,34 +1729,6 @@ emergencyBtn.MouseButton1Click:Connect(function()
     EmergencyStop()
 end)
 
--- Startstation Buttons in Autopilot Tab
-for i = 1, 4 do
-    local stationBtn = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationBtn" .. i)
-    if stationBtn then
-        stationBtn.MouseButton1Click:Connect(function()
-            Config.StartStationIndex = i
-            
-            -- Alle Buttons zurücksetzen
-            for j = 1, 4 do
-                local btn = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationBtn" .. j)
-                if btn then
-                    btn.BackgroundColor3 = Config.StartStationIndex == j and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 80)
-                end
-            end
-            
-            -- Label aktualisieren
-            local startLabel = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationLabel")
-            if startLabel then
-                startLabel.Text = "🚦 STARTSTATION: Station " .. Config.StartStationIndex
-            end
-            
-            SaveConfig()
-            UpdateStatistics()
-            Log("🚦 Startstation auf Station " .. i .. " gesetzt")
-        end)
-    end
-end
-
 -- Haltestellen Buttons
 for i = 1, 4 do
     local stationBtn = ScreenGui.MainFrame.ContentFrame.HaltestellenFrame:FindFirstChild("StationBtn" .. i)
@@ -2233,14 +1750,9 @@ clearBtn.MouseButton1Click:Connect(function()
             statusLabel.Text = "Nicht gespeichert"
             statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
         end
-        local posLabel = ScreenGui.MainFrame.ContentFrame.HaltestellenFrame:FindFirstChild("StationPos" .. i)
-        if posLabel then
-            posLabel.Text = "Position: Nicht gespeichert"
-            posLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-        end
     end
     SaveConfig()
-    Log("🗑️ Alle Haltestellen-Positionen gelöscht")
+    Log("🗑️ Alle Haltestellen gelöscht")
 end)
 
 -- Bremsdistanz Tab Events
@@ -2327,96 +1839,7 @@ end
 -- Einstellungen Events
 local settingsFrame = ScreenGui.MainFrame.ContentFrame.EinstellungenFrame
 
--- Performance Toggle
-local adaptiveToggle = settingsFrame:FindFirstChild("AdaptiveToggle")
-if adaptiveToggle then
-    adaptiveToggle.MouseButton1Click:Connect(function()
-        Config.AdaptiveUpdate = not Config.AdaptiveUpdate
-        adaptiveToggle.Text = "Adaptive Performance: " .. (Config.AdaptiveUpdate and "✅ AN" or "❌ AUS")
-        adaptiveToggle.BackgroundColor3 = Config.AdaptiveUpdate and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-        SaveConfig()
-        UpdateStatistics()
-    end)
-end
-
--- TextBox Events für Performance-Einstellungen
-local farIntervalBox = settingsFrame:FindFirstChild("FarIntervalSlider")
-if farIntervalBox then
-    farIntervalBox.FocusLost:Connect(function()
-        ApplySettingsFromGUI()
-    end)
-end
-
-local nearIntervalBox = settingsFrame:FindFirstChild("NearIntervalSlider")
-if nearIntervalBox then
-    nearIntervalBox.FocusLost:Connect(function()
-        ApplySettingsFromGUI()
-    end)
-end
-
-local slowDistBox = settingsFrame:FindFirstChild("SlowDistSlider")
-if slowDistBox then
-    slowDistBox.FocusLost:Connect(function()
-        ApplySettingsFromGUI()
-    end)
-end
-
-local fastDistBox = settingsFrame:FindFirstChild("FastDistSlider")
-if fastDistBox then
-    fastDistBox.FocusLost:Connect(function()
-        ApplySettingsFromGUI()
-    end)
-end
-
-local statIntervalBox = settingsFrame:FindFirstChild("StatIntervalSlider")
-if statIntervalBox then
-    statIntervalBox.FocusLost:Connect(function()
-        ApplySettingsFromGUI()
-    end)
-end
-
--- Startstation Buttons in Einstellungen
-for i = 1, 4 do
-    local startBtn = settingsFrame:FindFirstChild("StartStationSettingBtn" .. i)
-    if startBtn then
-        startBtn.MouseButton1Click:Connect(function()
-            Config.StartStationIndex = i
-            
-            -- Alle Buttons zurücksetzen
-            for j = 1, 4 do
-                local btn = settingsFrame:FindFirstChild("StartStationSettingBtn" .. j)
-                if btn then
-                    btn.BackgroundColor3 = Config.StartStationIndex == j and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 80)
-                end
-            end
-            
-            -- Label aktualisieren
-            local startText = settingsFrame:FindFirstChild("StartStationText")
-            if startText then
-                startText.Text = "Aktuelle Startstation: Station " .. Config.StartStationIndex
-            end
-            
-            -- Auch im Autopilot Tab aktualisieren
-            for j = 1, 4 do
-                local autoBtn = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationBtn" .. j)
-                if autoBtn then
-                    autoBtn.BackgroundColor3 = Config.StartStationIndex == j and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 80)
-                end
-            end
-            
-            local autoLabel = ScreenGui.MainFrame.ContentFrame.AutopilotFrame:FindFirstChild("StartStationLabel")
-            if autoLabel then
-                autoLabel.Text = "🚦 STARTSTATION: Station " .. Config.StartStationIndex
-            end
-            
-            SaveConfig()
-            UpdateStatistics()
-            Log("🚦 Startstation auf Station " .. i .. " gesetzt")
-        end)
-    end
-end
-
--- TextBox Events für Fahrtparameter
+-- TextBox Events
 local brakeDistBox = settingsFrame:FindFirstChild("BrakeDistSlider")
 if brakeDistBox then
     brakeDistBox.FocusLost:Connect(function()
@@ -2567,6 +1990,93 @@ if saveSettingsBtn then
     end)
 end
 
+-- Discord Events
+local discordFrame = ScreenGui.MainFrame.ContentFrame.DiscordFrame
+
+-- Webhook Input
+local webhookInput = discordFrame:FindFirstChild("WebhookInput")
+if webhookInput then
+    webhookInput.FocusLost:Connect(function()
+        Config.Webhook = webhookInput.Text
+        SaveConfig()
+    end)
+end
+
+-- Event Toggles
+local eventMoneyToggle = discordFrame:FindFirstChild("EventMoneyToggle")
+if eventMoneyToggle then
+    eventMoneyToggle.MouseButton1Click:Connect(function()
+        Config.WebhookEvents.MoneyEarned = not Config.WebhookEvents.MoneyEarned
+        eventMoneyToggle.Text = "💰 Geld verdient (+350€): " .. (Config.WebhookEvents.MoneyEarned and "✅ AN" or "❌ AUS")
+        eventMoneyToggle.BackgroundColor3 = Config.WebhookEvents.MoneyEarned and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        SaveConfig()
+    end)
+end
+
+local eventAutoToggle = discordFrame:FindFirstChild("EventAutoToggle")
+if eventAutoToggle then
+    eventAutoToggle.MouseButton1Click:Connect(function()
+        Config.WebhookEvents.AutoPilotToggle = not Config.WebhookEvents.AutoPilotToggle
+        eventAutoToggle.Text = "🚂 Autopilot Start/Stop: " .. (Config.WebhookEvents.AutoPilotToggle and "✅ AN" or "❌ AUS")
+        eventAutoToggle.BackgroundColor3 = Config.WebhookEvents.AutoPilotToggle and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        SaveConfig()
+    end)
+end
+
+local eventSystemToggle = discordFrame:FindFirstChild("EventSystemToggle")
+if eventSystemToggle then
+    eventSystemToggle.MouseButton1Click:Connect(function()
+        Config.WebhookEvents.SystemStart = not Config.WebhookEvents.SystemStart
+        eventSystemToggle.Text = "⚙️ System Start: " .. (Config.WebhookEvents.SystemStart and "✅ AN" or "❌ AUS")
+        eventSystemToggle.BackgroundColor3 = Config.WebhookEvents.SystemStart and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+        SaveConfig()
+    end)
+end
+
+-- Test Buttons
+local testWebhookBtn = discordFrame:FindFirstChild("TestWebhookBtn")
+if testWebhookBtn then
+    testWebhookBtn.MouseButton1Click:Connect(function()
+        if Config.Webhook ~= "" then
+            local data = {
+                embeds = {{
+                    title = "🔔 RailMaster Test",
+                    description = "Testnachricht erfolgreich!\nWebhook funktioniert korrekt.",
+                    color = 7419530,
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                    footer = {
+                        text = "RailMaster Pro v5.1"
+                    }
+                }}
+            }
+            
+            if SendDiscordWebhook(data) then
+                testWebhookBtn.Text = "✅ ERFOLGREICH!"
+                task.wait(2)
+                testWebhookBtn.Text = "🔔 TEST-WEBHOOK SENDEN"
+            else
+                testWebhookBtn.Text = "❌ FEHLER!"
+                task.wait(2)
+                testWebhookBtn.Text = "🔔 TEST-WEBHOOK SENDEN"
+            end
+        else
+            testWebhookBtn.Text = "❌ KEINE URL!"
+            task.wait(2)
+            testWebhookBtn.Text = "🔔 TEST-WEBHOOK SENDEN"
+        end
+    end)
+end
+
+local testMoneyBtn = discordFrame:FindFirstChild("TestMoneyBtn")
+if testMoneyBtn then
+    testMoneyBtn.MouseButton1Click:Connect(function()
+        SendMoneyNotification("Test-Station")
+        testMoneyBtn.Text = "✅ TEST GESENDET!"
+        task.wait(2)
+        testMoneyBtn.Text = "💰 TEST-GELDBENACHRICHTIGUNG"
+    end)
+end
+
 -- Stats Events
 local resetStatsBtn = ScreenGui.MainFrame.ContentFrame.StatsFrame:FindFirstChild("ResetStatsBtn")
 if resetStatsBtn then
@@ -2578,13 +2088,7 @@ if resetStatsBtn then
             LastTripTime = 0,
             MoneyPerHour = 0,
             TripsPerHour = 0,
-            StationVisits = {0, 0, 0, 0},
-            PerformanceStats = {
-                FastModeCount = 0,
-                SlowModeCount = 0,
-                UpdatesTotal = 0,
-                LastSwitchTime = 0
-            }
+            StationVisits = {0, 0, 0, 0}
         }
         
         UpdateMoneyLabel()
@@ -2599,7 +2103,6 @@ if resetStatsBtn then
     end)
 end
 
-Log("RailMaster v5.3 erfolgreich geladen! Drücke F1 um GUI auszublenden.")
 
 -- Auto-Start
 if Config.AutoStart then
